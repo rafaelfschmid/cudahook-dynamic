@@ -1,0 +1,9 @@
+$RODINIA/cuda/lud/cuda/lud_cuda -s 256 -v
+$RODINIA/cuda/hotspot3D/3D 512 8 100 $RODINIA/data/hotspot3D/power_512x8 $RODINIA/data/hotspot3D/temp_512x8 output.out
+$RODINIA/cuda/srad/srad_v2/srad 2048 2048 0 127 0 127 0.5 2
+$RODINIA/cuda/pathfinder/pathfinder 100000 100 20 > result.txt
+$RODINIA/cuda/bfs/bfs $RODINIA/data/bfs/graph1MW_6.txt
+$RODINIA/cuda/hotspot/hotspot 512 2 2 $RODINIA/data/hotspot/temp_512 $RODINIA/data/hotspot/power_512 output.out
+$RODINIA/cuda/kmeans/kmeans -o -i $RODINIA/data/kmeans/kdd_cup
+$RODINIA/cuda/heartwall/heartwall $RODINIA/data/heartwall/test.avi 20
+ 
