@@ -1,0 +1,2 @@
+$RODINIA/cuda/hotspot/hotspot 512 2 2 $RODINIA/data/hotspot/temp_512 $RODINIA/data/hotspot/power_512 output.out
+
