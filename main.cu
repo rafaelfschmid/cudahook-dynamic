@@ -9,37 +9,53 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <cuda.h>
-#include <cuda_profiler_api.h>
+//#include <cuda.h>
+//#include <cuda_profiler_api.h>
 #include <iostream>
 #include <vector>
-#include <future>
+#include <thread>
+#include <chrono>
 #include "Scheduler.h"
-
-
-//cudaStream_t streams[NUM_STREAMS];
 
 void exec(const char* s){
 	system(s);
 }
+//cudaStream_t streams[NUM_STREAMS];
 
 int main(int argc, char **argv) {
 
-	Scheduler s;
+	cudaDeviceProp prop;
+	cudaGetDeviceProperties(&prop, 0);
 
 	std::string line = "";
 	std::getline (std::cin, line);
 	exec(line.data());
+	//s.add(line);
+	//std::thread t1(exec,line.data());
+
+	std::string line2 = "";
+	std::getline (std::cin, line2);
+	//exec(line.data());
+	exec(line2.data());
+	//std::thread t2(exec,line2.data());
+
+	//rodinia::main(argc, argv);
+
+	//Scheduler s;
+	//int *num = Scheduler::num;
+	//s.init(0);
+	//try{}
+	//catch(...){printf("Exception\n");}
 	/*
 	std::string line = "";
 	while(line != " ") {
 		std::getline (std::cin, line);
 		//std::cout << line << "\n";
-		//std::string str = argv[i];//"./hotspot 1024 2 2 ../../data/hotspot/temp_1024 ../../data/hotspot/power_1024 output.out";
+		std::string str = argv[i];//"./hotspot 1024 2 2 ../../data/hotspot/temp_1024 ../../data/hotspot/power_1024 output.out";
 		s.programCall(line);
 	//	s.schedule();
-	}
-	s.execute();*/
+	}*/
+	//s.execute();
 
 	return 0;
 }

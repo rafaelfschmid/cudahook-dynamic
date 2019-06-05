@@ -18,13 +18,16 @@ ifeq ($(UNAME), Linux)
 	fi
 OPENCL_LIB = -L$(CLDIR)/lib -lOpenCL
 OPENCL_INC = -I $(CLDIR)/include
-all: libcudahook.so main.exe #libclhook.so
+all: scheduler.o libcudahook.so main.exe #libclhook.so
 endif
 
 COMMONFLAGS=-Wall -fPIC -shared -ldl
 
+scheduler.o: Scheduler.cpp
+	$(CXX) $(COMMONFLAGS) -o scheduler.o -c Scheduler.cpp -std=c++11
+
 libcudahook.so: cudahook.cpp
-	$(CXX) -I$(CUDAPATH)/include $(COMMONFLAGS) -o libcudahook.so cudahook.cpp -std=c++11
+	$(CXX) -I$(CUDAPATH)/include $(COMMONFLAGS) -o libcudahook.so cudahook.cpp scheduler.o -std=c++11
 
 libclhook.so: clhook.cpp
 	$(CXX) $(OPENCL_INC) $(OPENCL_LIB) $(COMMONFLAGS) -o libclhook.so clhook.cpp
@@ -38,11 +41,11 @@ libclhook.so: clhook.cpp
 #main.exe: cudahook.o main.o
 #	nvcc $(arch) $+ -o $@ -I"../lib" -std=c++11 --expt-extended-lambda -lcudart -DELAPSED_TIME=$(TIME) -DEXECUTIONS=$(EXECS)
 
-main.exe: main.cu
+main.exe: main.cu scheduler.o
 	nvcc $(arch) $+ -o $@ -I"../lib" -std=c++11 --expt-extended-lambda -lcudart -DELAPSED_TIME=$(TIME) -DEXECUTIONS=$(EXECS)	
 
 libclhook.dylib: clhook.cpp
 	$(CXX) $(OPENCL_INC) $(OPENCL_LIB) -Wall -dynamiclib -o libclhook.dylib clhook.cpp
 
 clean:
-	-rm libcudahook.so main.exe
+	-rm libcudahook.so main.exe scheduler.o

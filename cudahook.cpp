@@ -3,12 +3,16 @@
 #include <cassert>
 #include <map>
 #include <list>
-#include<vector>
-
 #include <cuda.h>
 #include <vector_types.h>
 
-//#include "cudahook.h"
+#include <vector>
+
+//std::vector<const char*> Scheduler::programs;
+
+extern "C" void executeKernels() {
+	printf("TESTANDOOOO\n");
+}
 
 typedef struct {
 	const char* entry;
@@ -59,34 +63,6 @@ deviceInfo_t &deviceInfo() {
 	static std::vector<deviceInfo_t> _devices;
 	return _devices;
 }*/
-
-void print_kernel_invocation(const char *entry) {
-	dim3 gridDim = kernelInfo().gridDim;
-	dim3 blockDim = kernelInfo().blockDim;
-
-	printf("SENTINEL %s ", kernelInfo().deviceFun);
-	if (gridDim.y == 1 && gridDim.z == 1) {
-		printf("--gridDim=%d ", gridDim.x);
-	} else if (gridDim.z == 1) {
-		printf("--gridDim=[%d,%d] ", gridDim.x, gridDim.y);
-	} else {
-		printf("--gridDim=[%d,%d,%d] ", gridDim.x, gridDim.y, gridDim.z);
-	}
-	if (blockDim.y == 1 && blockDim.z == 1) {
-		printf("--blockDim=%d ", blockDim.x);
-	} else if (blockDim.z == 1) {
-		printf("--blockDim=[%d,%d] ", blockDim.x, blockDim.y);
-	} else {
-		printf("--blockDim=[%d,%d,%d] ", blockDim.x, blockDim.y, blockDim.z);
-	}
-	for (std::list<void *>::iterator it = kernelInfo().args.begin(), end =
-			kernelInfo().args.end(); it != end; ++it) {
-		unsigned i = std::distance(kernelInfo().args.begin(), it);
-		printf("%d:%d ", i, *(static_cast<int *>(*it)));
-	}
-	printf("\n");
-}
-
 typedef cudaError_t (*cudaFuncGetAttributes_t)(struct cudaFuncAttributes *,	const void *);
 static cudaFuncGetAttributes_t realCudaFuncGetAttributes = NULL;
 
@@ -127,15 +103,40 @@ extern "C" cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp *prop,	int 
 	return ret;
 }
 
+void print_kernel_invocation(const char *entry) {
+	dim3 gridDim = kernelInfo().gridDim;
+	dim3 blockDim = kernelInfo().blockDim;
+
+	cudaFuncAttributes attr;
+	//cudaFuncGetAttributes(&attr, kernels()[entry]);
+	cudaFuncGetAttributes(&attr, (void*) entry);
+	printf("######################################################\n");
+	printf("numRegs=%d\n", attr.numRegs);
+	printf("maxThreadsPerBlock=%d\n", attr.maxThreadsPerBlock);
+	printf("sharedSizeBytes=%d\n", attr.sharedSizeBytes);
+	printf("######################################################\n");
+
+	/*
+	printf("binaryVersion=%d\n", attr.binaryVersion);
+	printf("cacheModeCA=%d\n", attr.cacheModeCA);
+	printf("constSizeBytes=%d\n", attr.constSizeBytes);
+	printf("localSizeBytes=%d\n", attr.localSizeBytes);
+	printf("ptxVersion=%d\n", attr.ptxVersion);*/
+
+}
+
+
+
 typedef cudaError_t (*cudaConfigureCall_t)(dim3, dim3, size_t, cudaStream_t);
 static cudaConfigureCall_t realCudaConfigureCall = NULL;
 
 extern "C" cudaError_t cudaConfigureCall(dim3 gridDim, dim3 blockDim, size_t sharedMem = 0, cudaStream_t stream = 0) {
-	//printf("TESTE 1\n");
+	printf("TESTE 1\n");
 	assert(kernelInfo().counter == 0 && "Multiple cudaConfigureCalls before cudaLaunch?");
 	kernelInfo().gridDim = gridDim;
 	kernelInfo().blockDim = blockDim;
 	kernelInfo().counter++;
+	printf("%s\n", kernelInfo().deviceFun);
 
 	if (realCudaConfigureCall == NULL)
 		realCudaConfigureCall = (cudaConfigureCall_t) dlsym(RTLD_NEXT, "cudaConfigureCall");
@@ -149,35 +150,24 @@ static cudaLaunch_t realCudaLaunch = NULL;
 
 extern "C" cudaError_t cudaLaunch(const char *entry) {
 
-	//printf("TESTE 3\n");
-
 	assert(kernelInfo().counter == 1 && "Multiple cudaConfigureCalls before cudaLaunch?");
 
 	print_kernel_invocation(entry);
 	kernelInfo().counter--;
 	kernelInfo().args.clear();
 
-	cudaFuncAttributes attr;
-	//cudaFuncGetAttributes(&attr, kernels()[entry]);
-	cudaFuncGetAttributes(&attr, (void*) entry);
-	printf("######################################################\n");
-	printf("binaryVersion=%d\n", attr.binaryVersion);
-	printf("cacheModeCA=%d\n", attr.cacheModeCA);
-	printf("constSizeBytes=%d\n", attr.constSizeBytes);
-	printf("localSizeBytes=%d\n", attr.localSizeBytes);
-	printf("maxThreadsPerBlock=%d\n", attr.maxThreadsPerBlock);
-	printf("numRegs=%d\n", attr.numRegs);
-	printf("ptxVersion=%d\n", attr.ptxVersion);
-	printf("sharedSizeBytes=%d\n", attr.sharedSizeBytes);
-	printf("######################################################\n");
+	kernels().push_back(kernelInfo());
+	printf("#$############%d############\n", kernels().size());
+
+	//Scheduler::schedule(entry);
 
 	if (realCudaLaunch == NULL) {
 		realCudaLaunch = (cudaLaunch_t) dlsym(RTLD_NEXT, "cudaLaunch");
 	}
 	assert(realCudaLaunch != NULL && "cudaLaunch is null");
 
-	//return realCudaLaunch(entry);
-	return (cudaError_t)0; //success == 0
+	return realCudaLaunch(entry);
+	//return (cudaError_t)0; //success == 0
 }
 
 typedef void (*cudaRegisterFunction_t)(void **, const char *, char *,
@@ -189,7 +179,7 @@ extern "C" void __cudaRegisterFunction(void **fatCubinHandle,
 		int thread_limit, uint3 *tid, uint3 *bid, dim3 *bDim, dim3 *gDim,
 		int *wSize) {
 
-	//printf("TESTE 0\n");
+	printf("TESTE 0\n");
 	kernelInfo().entry = hostFun;
 	kernelInfo().deviceFun = deviceFun;
 	//kernels()[hostFun] = deviceFun;
@@ -208,7 +198,7 @@ typedef cudaError_t (*cudaSetupArgument_t)(const void *, size_t, size_t);
 static cudaSetupArgument_t realCudaSetupArgument = NULL;
 
 extern "C" cudaError_t cudaSetupArgument(const void *arg, size_t size, size_t offset) {
-	//printf("TESTE 2\n");
+	printf("TESTE 2\n");
 
 	kernelInfo().args.push_back(const_cast<void *>(arg));
 	if (realCudaSetupArgument == NULL) {
