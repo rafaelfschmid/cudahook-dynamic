@@ -1,8 +1,5 @@
 #include "Scheduler.h"
 
-std::vector<const char*> *Scheduler::programs;
-int *Scheduler::num = new int();
-
 void Scheduler::init(int numOfDevices){
 	/*int count;
 	cudaGetDeviceCount(&count);

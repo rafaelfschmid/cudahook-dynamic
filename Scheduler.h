@@ -13,12 +13,9 @@
 #define SCHEDULER_H_
 
 class Scheduler {
-	//std::vector<std::string> programs;
-	//static int count;
-	static std::vector<const char*> *programs;
+	std::vector<const char*> *programs;
 
 public:
-	static int *num;
 
 	Scheduler() {
 		programs = new std::vector<const char*>();
@@ -38,8 +35,7 @@ public:
 		//Scheduler::count++;
 		//printf("count=%d\n", Scheduler::count);
 		//programs->push_back(entry);
-		*Scheduler::num = 8;
-		//return 8;
+			//return 8;
 		//printf("count=%d\n", programs->size());
 		//std::chrono::milliseconds timespan(10000); // or whatever
 		//std::this_thread::sleep_for(timespan);
