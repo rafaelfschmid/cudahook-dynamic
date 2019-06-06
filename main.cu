@@ -7,17 +7,13 @@
 #include <vector>
 #include <thread>
 #include <future>
-#include "Scheduler.h"
-#include "cudahook.h"
 
 #include <unistd.h>
 #include <dlfcn.h>
 #include <signal.h>
 
-#include <boost/interprocess/managed_shared_memory.hpp>
-
-namespace bip = boost::interprocess;
-//namespace bv = boost::container;
+#include "cudahook.h"
+#include "Scheduler.h"
 
 typedef void* my_lib_t;
 
@@ -59,7 +55,7 @@ int main(int argc, char **argv) {
 	bip::managed_shared_memory segment(boost::interprocess::create_only, "shared_memory", 65536);
 
 	int *id = segment.construct<int>("index")(-1);
-	SharedMap *mymap =  segment.construct<SharedMap>("Kernels") (std::less<int>() ,segment.get_segment_manager());
+	SharedMap *kernels =  segment.construct<SharedMap>("Kernels") (std::less<int>() ,segment.get_segment_manager());
 
 	std::string line1 = "";
 	std::string line2 = "";
@@ -72,7 +68,9 @@ int main(int argc, char **argv) {
 	vec.push_back(std::async(std::launch::async,exec,line2.data()));
 
 
+	printf("começoooouuuu\n");
 	callcudahook(2, 2);
+	printf("acaboooouuuu\n");
 
 	vec[0].get();
 	vec[1].get();

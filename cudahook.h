@@ -6,8 +6,6 @@
 #include <vector_types.h>
 #include <vector>
 
-#include <boost/interprocess/containers/vector.hpp>
-
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/containers/map.hpp>
 
@@ -26,6 +24,7 @@ typedef struct {
 	//int computationalTime;
 	cudaStream_t stream;
 	bool start = false;
+	bool finished = false;
 	//std::list<void *> args;
 } kernelInfo_t;
 
@@ -55,20 +54,6 @@ std::vector<deviceInfo_t> &devices() {
 	static std::vector<deviceInfo_t> _devices;
 	return _devices;
 }
-
-struct find_kernel
-{
-    int id;
-    find_kernel(int id) : id(id) {}
-    bool operator () ( const kernelInfo_t& m ) const
-    {
-        return m.id == id;
-    }
-    //it = std::find_if( monsters.begin(), monsters.end(), find_monster(monsterID));
-};
-
-//typedef bip::allocator<kernelInfo_t, boost::interprocess::managed_shared_memory::segment_manager> ShmemListAllocator;
-//typedef bip::vector<kernelInfo_t, ShmemListAllocator> MyVector;
 
 typedef int    KeyType;
 typedef kernelInfo_t  MappedType;
