@@ -55,17 +55,11 @@ void exec(const char* s){
 
 int main(int argc, char **argv) {
 
-	cudaDeviceProp prop;
-	cudaGetDeviceProperties(&prop, 0);
+	bip::shared_memory_object::remove("shared_memory");
+	bip::managed_shared_memory segment(boost::interprocess::create_only, "shared_memory", 65536);
 
-	/*bip::shared_memory_object::remove("shared_memory");
-	bip::managed_shared_memory managed_shm(bip::open_or_create, "shared_memory", 1024);
-	int *i = managed_shm.construct<int>("index")(0);
-	std::cout << *i << '\n';*/
-
-	bip::shared_memory_object::remove("MySharedMemory");
-	bip::managed_shared_memory segment(boost::interprocess::create_only, "MySharedMemory", 65536);
-	MyVector *kernels = segment.construct<MyVector>("Kernels")(segment.get_segment_manager());
+	int *id = segment.construct<int>("index")(-1);
+	SharedMap *mymap =  segment.construct<SharedMap>("Kernels") (std::less<int>() ,segment.get_segment_manager());
 
 	std::string line1 = "";
 	std::string line2 = "";

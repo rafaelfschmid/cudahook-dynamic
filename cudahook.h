@@ -7,13 +7,15 @@
 #include <vector>
 
 #include <boost/interprocess/containers/vector.hpp>
+
 #include <boost/interprocess/managed_shared_memory.hpp>
+#include <boost/interprocess/containers/map.hpp>
 
 namespace bip = boost::interprocess;
 
 typedef struct {
 	const char* entry;
-	int id;
+	int id = -1;
 	//dim3 gridDim;
 	//dim3 blockDim;
 	int numOfBlocks;
@@ -21,10 +23,10 @@ typedef struct {
 	int numOfRegisters;
 	int sharedDynamicMemory;
 	int sharedStaticMemory;
-	int computationalTime;
+	//int computationalTime;
 	cudaStream_t stream;
 	bool start = false;
-	std::list<void *> args;
+	//std::list<void *> args;
 } kernelInfo_t;
 
 kernelInfo_t &kernelInfo() {
@@ -32,10 +34,10 @@ kernelInfo_t &kernelInfo() {
 	return _kernelInfo;
 }
 
-std::vector<kernelInfo_t> &kernels() {
+/*std::vector<kernelInfo_t> &kernels() {
 	static std::vector<kernelInfo_t> _kernels;
 	return _kernels;
-}
+}*/
 
 typedef struct {
 	int numOfSMs;
@@ -65,5 +67,15 @@ struct find_kernel
     //it = std::find_if( monsters.begin(), monsters.end(), find_monster(monsterID));
 };
 
-typedef bip::allocator<kernelInfo_t, boost::interprocess::managed_shared_memory::segment_manager> ShmemListAllocator;
-typedef bip::vector<kernelInfo_t, ShmemListAllocator> MyVector;
+//typedef bip::allocator<kernelInfo_t, boost::interprocess::managed_shared_memory::segment_manager> ShmemListAllocator;
+//typedef bip::vector<kernelInfo_t, ShmemListAllocator> MyVector;
+
+typedef int    KeyType;
+typedef kernelInfo_t  MappedType;
+typedef std::pair<const int, kernelInfo_t> ValueType;
+
+//allocator of for the map.
+typedef bip::allocator<ValueType, bip::managed_shared_memory::segment_manager> ShmemAllocator;
+
+//third parameter argument is the ordering function is used to compare the keys.
+typedef bip::map<int, kernelInfo_t, std::less<int>, ShmemAllocator> SharedMap;

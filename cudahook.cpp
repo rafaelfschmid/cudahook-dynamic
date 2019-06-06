@@ -81,7 +81,7 @@ void printDevices() {
 	}
 }
 
-void printKernels() {
+/*void printKernels() {
 	for(auto k : kernels()) {
 		printf("##################################################\n");
 		//printf("entry=%d\n", k.entry);
@@ -90,8 +90,83 @@ void printKernels() {
 		printf("numOfRegisters=%d\n", k.numOfRegisters);
 		printf("sharedMemory=%d\n", k.sharedDynamicMemory);
 		printf("sharedMemory=%d\n", k.sharedStaticMemory);
-		printf("computationalTime=%d\n", k.computationalTime);
+		//printf("computationalTime=%d\n", k.computationalTime);
 		printf("##################################################\n");
+	}
+}*/
+
+void knapsack(int **tab, int itens, int pesoTotal){
+	bip::managed_shared_memory segment(bip::open_only, "shared_memory");
+	SharedMap* kernels = segment.find<SharedMap>("Kernels").first;
+
+	int item = 1;
+	for(SharedMap::iterator iter = kernels->begin(); iter != kernels->end(); iter++)
+	{
+		for(int peso = 1; peso <= pesoTotal; peso++) {
+			int pesoi = iter->second.numOfThreads;
+			if(pesoi <= peso) {
+				if(pesoi + tab[item-1][peso-pesoi] > tab[item-1][peso])
+					tab[item][peso] = pesoi + tab[item-1][peso-pesoi];
+				else
+					tab[item][peso] = tab[item-1][peso];
+			}
+			else {
+				tab[item][peso] = tab[item-1][peso];
+			}
+		}
+	}
+}
+
+void fill(int **tab, int itens, int pesoTotal, std::vector<int>& resp){
+	bip::managed_shared_memory segment(bip::open_only, "shared_memory");
+	SharedMap* kernels = segment.find<SharedMap>("Kernels").first;
+	SharedMap::iterator iter = kernels->end();
+	iter--;
+
+	// se já calculamos esse estado da dp, retornamos o resultado salvo
+	while(itens > 0 && pesoTotal > 0) {
+		if(tab[itens][pesoTotal] != tab[itens-1][pesoTotal])
+		{
+			pesoTotal = pesoTotal - iter->second.numOfThreads;
+			//printf("iter->first=%d\n", iter->first);
+			resp.push_back(iter->first);
+		}
+		iter--;
+		itens--;
+	}
+}
+
+void schedule(std::vector<int>& resp) {
+	cudaDeviceProp prop;
+	cudaGetDeviceProperties(&prop, 0);
+
+	bip::managed_shared_memory segment(bip::open_only, "shared_memory");
+	SharedMap* kernels = segment.find<SharedMap>("Kernels").first;
+
+	int peso = prop.maxThreadsPerMultiProcessor;
+	int itens = kernels->size();
+	int count = 0;
+	int s = 0;
+
+	int **tab = new int*[itens+1];
+	//resp = new int[itens+1];
+	for(int i = 0; i <= itens; i++) {
+		tab[i] = new int[peso+1];
+	}
+
+	for(int i = 0; i <= itens; i++) {
+		tab[i][0] = 0;
+	}
+
+	for(int j = 0; j <= peso; j++) {
+		tab[0][j] = 0;
+	}
+
+	knapsack(tab, itens, peso);
+	fill(tab, itens, peso, resp);
+
+	for(int i = 0; i <= itens; i++) {
+		delete[] tab[i];
 	}
 }
 
@@ -101,177 +176,39 @@ std::mutex cv_m;
 std::condition_variable cvx;
 std::mutex cv_x;
 
-/*struct Comp {
-	template<typename T>
-	bool operator()(const T& t1, const T& t2) const
-	{
-		return t1.numOfRegisters < t2.numOfRegisters;
-	}
-};*/
-
-void knapsack(int **tab, int itens, int pesoTotal){
-
-	for(int item = 1; item <= itens; item++) {
-		for(int peso = 1; peso <= pesoTotal; peso++) {
-			if(kernels()[item-1].start) {
-				tab[item][peso] = tab[item-1][peso];
-			}
-			else {
-				int pesoi = kernels()[item-1].numOfThreads;
-				if(pesoi <= peso) {
-					if(pesoi + tab[item-1][peso-pesoi] > tab[item-1][peso])
-						tab[item][peso] = pesoi + tab[item-1][peso-pesoi];
-					else
-						tab[item][peso] = tab[item-1][peso];
-				}
-				else {
-					tab[item][peso] = tab[item-1][peso];
-				}
-			}
-		}
-	}
-}
-
-void fill(int **tab, int itens, int pesoTotal, int* resp){
-
-	// se já calculamos esse estado da dp, retornamos o resultado salvo
-	while(itens > 0 && pesoTotal > 0) {
-		if(tab[itens][pesoTotal] != tab[itens-1][pesoTotal])
-		{
-			resp[itens] = 1;
-			pesoTotal = pesoTotal - kernels()[itens-1].numOfThreads;
-		}
-		itens--;
-	}
-}
-
-
 extern "C" bool scheduleKernels(int n, int num_streams) {
-	/*{
-		std::unique_lock<std::mutex> lkg(cv_x);
-		cvx.wait(lkg, [&n](){ return kernels().size() == n; });
-		if(DEBUG)
-			printf("kernels().size()=%d == n=%d\n", kernels().size(), n);
-	}*/
-
-	//bip::managed_shared_memory managed_shm(bip::open_only, "shared_memory");
+	bip::managed_shared_memory segment(bip::open_only, "shared_memory");
+	SharedMap* kernels = segment.find<SharedMap>("Kernels").first;
 	{
-		std::unique_lock<std::mutex> lkg(cv_x);
-		//std::this_thread::sleep_for(std::chrono::seconds(1));
-		//std::pair<int*, std::size_t> p = managed_shm.find<int>("index");
-		//bip::managed_shared_memory segment(bip::open_only, "MySharedMemory");
-		bip::managed_shared_memory segment(bip::open_only, "MySharedMemory");
-		MyVector* myVector = segment.find<MyVector>("Kernels").first;
-		//cvx.wait(lkg, [&n, &p](){return (*p.first) == n;});
-		//printf("*p.first=%d -------- n=%d\n", *p.first, n);
-		//while (*p.first != n);
-		while (myVector->size() != n);
-    	//printf("*p.first=%d -------- n=%d\n", *p.first, n);
-
-		//
+		//std::unique_lock<std::mutex> lkg(cv_x);
+		while (kernels->size() != n);
 	}
-
-	/*int peso = devices()[0].maxThreads;
-	int itens = kernels().size();
-	int count = 0;
-	int s = 0;
-
-	printKernels();
 
 	cudaStream_t* streams = new cudaStream_t[num_streams];
 	for (int i = 0; i < num_streams; i++) {
 		cudaStreamCreate(&streams[i]);
 	}
 
-	int **tab = new int*[itens+1];
-	int *resp = new int[itens+1];
-	for(int i = 0; i <= itens; i++) {
-		tab[i] = new int[peso+1];
+	std::vector<int> resp;
+	//while(kernels->size() != 0) {
+	while(true){
+
+		schedule(resp);
+
+		//std::lock_guard<std::mutex> lk(cv_m);
+		int s = 0;
+		for(int i : resp) {
+			printf("i=%d\n", i);
+			kernels->at(i).stream = streams[s];
+			kernels->at(i).start = true;
+			s = (s+1) % num_streams;
+		}
+		//cvm.notify_all();
+
+		resp.clear();
 	}
 
-	while(count != itens) {
-		/*for(int i = 0; i <= itens; i++) {
-			tab[i][0] = 0;
-			resp[i] = 0;
-		}
-
-		for(int j = 0; j <= peso; j++) {
-			tab[0][j] = 0;
-		}
-
-		for(int i = 0; i <= itens; i++) {
-			resp[i] = 0;
-			for(int j = 0; j <= peso; j++) {
-				tab[i][j] = 0;
-			}
-		}
-
-
-		knapsack(tab, itens, peso);
-		fill(tab, itens, peso, resp);
-		//printf("peso=%d", peso);
-		for(int j = 0; j <= itens; j++) {
-			printf("%d ",resp[j]);
-		}
-
-		//int i = 0;
-		//while(i <= itens) {
-
-		for(int i = 1; i <= itens; i++) {
-			if(resp[i] == 1) {
-				count++;
-				//printf("mochila-->i=%d\n", i-1);
-				std::lock_guard<std::mutex> lk(cv_m);
-				kernels()[i-1].start = true;
-				kernels()[i-1].stream = streams[s];
-				s = (s+1) % num_streams;
-				//a = !a;
-				cvm.notify_all();
-			}
-			//else i++;
-		}
-	}*/
-
-	cudaStream_t* streams = new cudaStream_t[num_streams];
-	for (int i = 0; i < num_streams; i++) {
-		cudaStreamCreate(&streams[i]);
-	}
-
-	//printf("kernels().size()=%d == n=%d\n", kernels().size(), n);
-	int s = 0;
-	std::lock_guard<std::mutex> lk(cv_m);
-	bip::managed_shared_memory segment(bip::open_only, "MySharedMemory");
-	MyVector* myVector = segment.find<MyVector>("Kernels").first;
-	for(MyVector::iterator iter = myVector->begin(); iter < myVector->end(); iter++)
-	{
-		iter->start = true;
-		iter->stream = streams[s];
-		s = (s+1) % num_streams;
-		/*std::string str("kernel" + std::to_string(i));
-		printf("kernel=%s\n", str.data());
-		std::pair<kernelInfo_t*, std::size_t> p = managed_shm.find<kernelInfo_t>(str.data());
-		p.first->start = true;
-		p.first->stream = streams[s];
-		s = (s+1) % num_streams;*/
-
-
-	}
-	cvm.notify_all();
-	/*for(int i = 0; i < kernels().size(); i++)
-	{
-		printf("id=%d\n", i);
-		kernels()[i].start = true;
-		kernels()[i].stream = streams[s];
-		s = (s+1) % num_streams;
-		cvm.notify_all();
-	}*/
-
-	/*for(int i = 0; i <= itens; i++) {
-		delete tab[i];
-	}
-	delete resp;
-	cudaFree(streams);*/
-
+	cudaFree(streams);
 	return true;
 }
 
@@ -284,60 +221,43 @@ extern "C" cudaError_t cudaConfigureCall(dim3 gridDim, dim3 blockDim, size_t sha
 
 	cudaFuncAttributes attr;
 	cudaFuncGetAttributes(&attr, (void*) kernelInfo().entry);
+
+	bip::managed_shared_memory segment(bip::open_only, "shared_memory");
+	SharedMap* kernels = segment.find<SharedMap>("Kernels").first;
+	int* index = segment.find<int>("index").first;
+
 	kernelInfo_t k;
-	k.sharedDynamicMemory = sharedMem;
-	k.numOfThreads = blockDim.x * blockDim.y * blockDim.z;
-	k.numOfBlocks = gridDim.x * gridDim.y * gridDim.z;
-	k.numOfRegisters = attr.numRegs;
-	k.sharedStaticMemory = attr.sharedSizeBytes;
-
-	//bip::managed_shared_memory managed_shm(bip::open_only, "shared_memory");
-
-	bip::managed_shared_memory segment(bip::open_only, "MySharedMemory");
-	std::string str;
-	int id;
 	{
-		/*std::lock_guard<std::mutex> lkg(cv_x);
-		std::pair<int*, std::size_t> p = managed_shm.find<int>("index");
-		id = *p.first;
-		*p.first = (*p.first)+1;
-		printf("id=%d\n",id);
-		str = "kernel" + std::to_string(id);*/
-		//str = "kernel"+ std::string(id);
-		//str +=id;
-		/*printf("kernel=%s\n", str.data());
-		k = managed_shm.construct<kernelInfo_t>(str.data())();
-		k->sharedDynamicMemory = sharedMem;
-		k->numOfThreads = blockDim.x * blockDim.y * blockDim.z;
-		k->numOfBlocks = gridDim.x * gridDim.y * gridDim.z;
-		k->numOfRegisters = attr.numRegs;
-		k->sharedStaticMemory = attr.sharedSizeBytes;*/
 		std::lock_guard<std::mutex> lkg(cv_x);
-		//bip::managed_shared_memory segment(open_only, "MySharedMemory");
-		MyVector* myVector = segment.find<MyVector>("Kernels").first;
-		id = k.id = myVector->size();
-		myVector->push_back(k);
-	}
-	cvx.notify_all();
+		k.id = *index = (*index) + 1;
+		k.sharedDynamicMemory = sharedMem;
+		k.numOfThreads = blockDim.x * blockDim.y * blockDim.z;
+		k.numOfBlocks = gridDim.x * gridDim.y * gridDim.z;
+		k.numOfRegisters = attr.numRegs;
+		k.sharedStaticMemory = attr.sharedSizeBytes;
+		k.start = false;
 
-	{
-		std::unique_lock<std::mutex> lk(cv_m);
-		printf("Waiting... \n");
-		//cvm.wait(lk, [&id](){return id == 1;});
-		//std::pair<kernelInfo_t*, std::size_t> p = managed_shm.find<kernelInfo_t>(str.data());
-		//cvm.wait(lk, [&p](){return p.first->start == true;});
-		MyVector* myVector = segment.find<MyVector>("Kernels").first;
-		MyVector::iterator iter = myVector->begin();
-		iter+=id;
-		while(iter->start != true);
-		printf("%d...finished waiting.\n", id);
+		printf("vec-size=%d\n", k.id);
+		kernels->insert(std::pair<const int, kernelInfo_t>(k.id, k));
 	}
+	//cvx.notify_all();
+
+	cudaStream_t s;
+	{
+		//std::unique_lock<std::mutex> lk(cv_m);
+		printf("Waiting... \n");
+		while(kernels->at(k.id).start != true);
+		printf("%d...finished waiting.\n", k.id);
+		s = kernels->at(k.id).stream;
+		kernels->erase(k.id);
+	}
+
 
 	if (realCudaConfigureCall == NULL)
 		realCudaConfigureCall = (cudaConfigureCall_t) dlsym(RTLD_NEXT, "cudaConfigureCall");
 
 	assert(realCudaConfigureCall != NULL && "cudaConfigureCall is null");
-	return realCudaConfigureCall(gridDim, blockDim, sharedMem, kernelInfo().stream);
+	return realCudaConfigureCall(gridDim, blockDim, sharedMem, s);
 }
 
 typedef cudaError_t (*cudaLaunch_t)(const char *);
@@ -385,7 +305,7 @@ extern "C" cudaError_t cudaSetupArgument(const void *arg, size_t size, size_t of
 	if(DEBUG)
 		printf("TESTE 2\n");
 
-	kernelInfo().args.push_back(const_cast<void *>(arg));
+	//kernelInfo().args.push_back(const_cast<void *>(arg));
 	if (realCudaSetupArgument == NULL) {
 		realCudaSetupArgument = (cudaSetupArgument_t) dlsym(RTLD_NEXT,
 				"cudaSetupArgument");
